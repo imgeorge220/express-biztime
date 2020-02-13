@@ -17,12 +17,22 @@ router.get("/", async function (req, res) {
 /** GET /companies/[code]: get single company by company code */
 router.get("/:code", async function (req, res, next) {
   try {
-    const result = await db.query(
+    const companiesPromise = db.query(
       `SELECT code, name, description FROM companies
       WHERE code=$1`, [req.params.code]
     );
-    if (result.rows[0]) {
-      return res.json({ company: result.rows[0] });
+
+    const invoicesPromise = db.query(
+      `SELECT id, comp_code, amt, paid, add_date, paid_date
+      FROM invoices
+      WHERE comp_code=$1`, [req.params.code]
+    )
+    
+    const resultCompanies = await companiesPromise;
+    const resultInvoices = await invoicesPromise;
+
+    if (resultCompanies.rows[0]) {
+      return res.json({ company: {...resultCompanies.rows[0], invoices: resultInvoices.rows } });
     }
     throw new ExpressError("Company not in database. Try again!", 404)
   }
