@@ -61,18 +61,41 @@ router.post("/", async function (req, res, next) {
 /** PATCH /invoices/[id]: partially update an existing invoice by invoice id */
 router.patch("/:id", async function (req, res, next) {
   try {
-    const { amt } = req.body;
+    const { amt, paid } = req.body;
+    let result;
+    let paid_date;
 
-    const result = await db.query(
-      `UPDATE invoices SET amt=$2
-      WHERE id=$1
-      RETURNING id, comp_code, amt, paid, add_date, paid_date`, [req.params.id, amt]
+    paidResult = await db.query(
+      `SELECT paid FROM invoices
+        WHERE id=$1`, [req.params.id]
     );
 
-    if (result.rows[0]) {
-      return res.json({ invoice: result.rows[0] });
+    if (!paidResult.rows[0]) {
+      throw new ExpressError("Invoice not in database. Try again!", 404)
     }
-    throw new ExpressError("Invoice not in database. Try again!", 404)
+
+    prevPaid = paidResult.rows[0].paid;
+
+    if (paid === prevPaid || paid === undefined){
+      result = await db.query(
+        `UPDATE invoices SET amt=$2
+        WHERE id=$1
+        RETURNING id, comp_code, amt, paid, add_date, paid_date`, [req.params.id, amt]
+      );
+    } else {
+      if (paid){
+        paid_date = new Date();
+      } else {
+        paid_date = null;
+      }
+      result = await db.query(
+        `UPDATE invoices SET amt=$2, paid=$3, paid_date=$4
+        WHERE id=$1
+        RETURNING id, comp_code, amt, paid, add_date, paid_date`, [req.params.id, amt, paid, paid_date]
+      );
+    }
+    
+    return res.json({ invoice: result.rows[0] });
   }
   catch (err) {
     next(err);
